@@ -59,13 +59,13 @@ class MeanEncoding(BaseEstimator, TransformerMixin):
         if self.strategy == 'mean':
             df_aux = self.__mean_encoding(X)
         elif self.strategy == 'mean_reg':
-            df_aux = self.__mean_encoding_reg(X)
+            df_aux = self.__mean_encoding(X)
         elif self.strategy == 'mean_reg_smooth':
-            df_aux = self.__mean_encoding_reg(X)
+            df_aux = self.__mean_encoding(X)
         return df_aux
 
     def get_feature_names(self):
-        names = [col + 'mean_target' for col in self.features_]
+        names = [col + '_mean_target' for col in self.features_]
         return names
 
     def __mean_encoding_reg_fit(self, X):
@@ -74,6 +74,11 @@ class MeanEncoding(BaseEstimator, TransformerMixin):
         # create fold to iterate
         skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=self.seed)
         count = 0
+
+        df_aux = X.copy()
+        for col in self.features_:
+            df_aux[col + '_mean_target'] = None
+
         # iterate over each kfold defined
         for train_index, test_index in skf.split(X, X[self.target]):
             print(train_index, test_index)
@@ -85,10 +90,17 @@ class MeanEncoding(BaseEstimator, TransformerMixin):
                 pond = (train.groupby(col)[self.target].mean() * num_samples + self.alpha * self.global_mean_) / (
                             self.alpha + num_samples)
                 means = test[col].map(pond)
+                # print(means)
+                df_aux.loc[means.index, col + '_mean_target'] = means
+                # print(df_aux)
                 aux = {round(means.values[0], 2): means.index.values.tolist()}
-                self.means_[col + '_' + str(count)] = aux
+                # self.means_[col + '_' + str(count)] = aux
 
-        return None
+        df_aux.fillna(value=self.global_mean_, inplace=True)
+        print(df_aux)
+        for col in self.features_:
+            self.means_[col] = df_aux.groupby(col)[col + '_mean_target'].mean().to_dict()
+        return df_aux
 
     def __mean_encoding(self, X):
         df_aux = pd.DataFrame()
